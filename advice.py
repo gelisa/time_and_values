@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
+from IPython.display import display
 
 from tasks import Tasks
 from values import Values
 from locks import Locks
 from time_sheet import TimeSheet
 from table import Table
+import general_tools as tls
 
 
 class Advice(Table):
@@ -77,7 +79,7 @@ class Advice(Table):
     def propose_next(self):
         for i in range(self.table.shape[0]):
             top_choice = self._get_ith_candidate(i)
-            has_lock = self._check_the_locks(top_choice['value_id'], top_choice['task'])
+            has_lock = self._has_lock(top_choice['value_id'], top_choice['task'])
             if not has_lock:
                 answer = input(self._format_proposal(top_choice))
                 if_stop, till_when = interpret_answer(answer)
@@ -85,11 +87,19 @@ class Advice(Table):
                     print("Okay. Let's do it!")
                     break
                 else:
-                    self.l.add_new_lock(top_choice['value_id'], top_choice['task'], till_when)
+                    self.lock(top_choice['value_id'], top_choice['task'], till_when)
             else:
                 continue
         else:
             print('out of options wanna repeat?')
+
+    def print_deficits(self, sort_variable='deficit_points'):
+        deficits = self.table[
+                (~self.table[['value_id', 'task']].apply(lambda x: self._has_lock(*x), axis=1)) &
+                (self.table.deficit > 0)
+            ].sort_values(sort_variable, ascending=False)
+        display(deficits)
+        print('total deficit:', deficits.deficit.sum())
 
     def _format_proposal(self, entry):
         vn = self.v.get_value_name(entry['value_id'])
@@ -106,7 +116,7 @@ class Advice(Table):
             o=entry['opportunity']
         )
 
-    def _check_the_locks(self, value_id, task):
+    def _has_lock(self, value_id, task):
         disturb_times = self.l.table.groupby(['value_id', 'task']).disturb_again_on.max()
         try:
             max_time = disturb_times[value_id, task]
@@ -117,22 +127,24 @@ class Advice(Table):
         else:
             return True
 
+    def lock(self, value_id, task_id, till_when):
+        self.l.add_new_lock(value_id, task_id, till_when)
+
 
 def interpret_answer(answer):
     if answer in ['yes', 'sure']:
         return True, None
     if answer in ['later', 'tomorrow', 'next week']:
         if answer == 'tomorrow':
-            date = get_today_datetime() + timedelta(days=1)
+            date = tls.get_today_datetime() + timedelta(days=1)
         elif answer == 'next week':
-            date = get_today_datetime() + timedelta(days=7)
+            date = tls.get_today_datetime() + timedelta(days=7)
         else:
             date = datetime.now() + timedelta(hours=1)
         return False, date
 
 
-def get_today_datetime():
-    return datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
+
 
 
 

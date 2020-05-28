@@ -4,6 +4,7 @@ from os import path
 
 from table import Table
 from tasks import Tasks
+import general_tools as tls
 
 
 class TimeSheet(Table):
@@ -52,5 +53,15 @@ class TimeSheet(Table):
 
     def between(self, ds1, ds2):
         return self.table[self.table.datestr.between(ds1, ds2)]
+
+    def print_history(self):
+        grouped = self.groupby('datestr').entry.sum().sort_index(ascending=False)
+        latest = grouped.index[0]
+        week_ago = tls.add_days_to_datestr(tls.get_today_datestr(), -7)
+        last_print = min(latest, week_ago)
+        print('last recorded day')
+        print(self.table[self.table.datestr == latest][['value_id', 'task', 'entry']])
+        print('last week')
+        print(grouped.loc[:last_print])
 
 
